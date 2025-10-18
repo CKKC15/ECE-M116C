@@ -1,0 +1,99 @@
+# test:
+    0:        00010437        lui x8 0x10
+    4:        04040413        addi x8 x8 64
+    8:        000204b7        lui x9 0x20
+    c:        fe048493        addi x9 x9 -32
+    10:        ff00f2b7        lui x5 0xff00f
+    14:        f002e293        ori x5 x5 -256
+    18:        00542023        sw x5 0 x8
+    1c:        fff00313        addi x6 x0 -1
+    20:        00642223        sw x6 4 x8
+    24:        07f00393        addi x7 x0 127
+    28:        00741423        sh x7 8 x8
+    2c:        00100e13        addi x28 x0 1
+    30:        01c41523        sh x28 10 x8
+    34:        00344e83        lbu x29 3 x8
+    38:        00444f03        lbu x30 4 x8
+    3c:        00042f83        lw x31 0 x8
+    40:        006ffbb3        and x23 x31 x6
+    44:        01742623        sw x23 12 x8
+    48:        01d41723        sh x29 14 x8
+    4c:        00c42c03        lw x24 12 x8
+    50:        00f44c83        lbu x25 15 x8
+    54:        00600913        addi x18 x0 6
+    58:        00000993        addi x19 x0 0
+
+0000005c <loop0>:
+    5c:        0129f9b3        and x19 x19 x18
+    60:        41c9d9b3        sra x19 x19 x28
+    64:        0039ba13        sltiu x20 x19 3
+    68:        000a1663        bne x20 x0 12 <loop1>
+    6c:        00598993        addi x19 x19 5
+    70:        fe0016e3        bne x0 x0 -20 <loop0>
+
+00000074 <loop1>:
+    74:        fff90913        addi x18 x18 -1
+    78:        fe0912e3        bne x18 x0 -28 <loop0>
+    7c:        00000eb7        lui x29 0x0
+    80:        0a4e8e93        addi x29 x29 164
+    84:        000e80e7        jalr x1 x29 0
+    88:        00000eb7        lui x29 0x0
+    8c:        0c8e8e93        addi x29 x29 200
+    90:        000e80e7        jalr x1 x29 0
+    94:        00000eb7        lui x29 0x0
+    98:        0fce8e93        addi x29 x29 252
+    9c:        000e80e7        jalr x1 x29 0
+    a0:        00008067        jalr x0 x1 0
+
+000000a4 <f_mask>:
+    a4:        00042283        lw x5 0 x8
+    a8:        00442303        lw x6 4 x8
+    ac:        0062f3b3        and x7 x5 x6
+    b0:        41c3d3b3        sra x7 x7 x28
+    b4:        4003be13        sltiu x28 x7 1024
+    b8:        000e1463        bne x28 x0 8 <f_mask_small>
+    bc:        c0038393        addi x7 x7 -1024
+
+000000c0 <f_mask_small>:
+    c0:        00742823        sw x7 16 x8
+    c4:        00008067        jalr x0 x1 0
+
+000000c8 <f_mix>:
+    c8:        00944e83        lbu x29 9 x8
+    cc:        00a44f03        lbu x30 10 x8
+    d0:        01eeffb3        and x31 x29 x30
+    d4:        01f00b93        addi x23 x0 31
+    d8:        417fdfb3        sra x31 x31 x23
+    dc:        001fbc13        sltiu x24 x31 1
+    e0:        000c1663        bne x24 x0 12 <f_mix_set>
+    e4:        00000f93        addi x31 x0 0
+    e8:        00001463        bne x0 x0 8 <f_mix_done>
+
+000000ec <f_mix_set>:
+    ec:        00100f93        addi x31 x0 1
+
+000000f0 <f_mix_done>:
+    f0:        01f41923        sh x31 18 x8
+    f4:        01f42a23        sw x31 20 x8
+    f8:        00008067        jalr x0 x1 0
+
+000000fc <f_finalize>:
+    fc:        01042283        lw x5 16 x8
+    100:        01442303        lw x6 20 x8
+    104:        0062f533        and x10 x5 x6
+    108:        00e44383        lbu x7 14 x8
+    10c:        00f44e03        lbu x28 15 x8
+    110:        41c38eb3        sub x29 x7 x28
+    114:        080ebf13        sltiu x30 x29 128
+    118:        000f1463        bne x30 x0 8 <f_fin_small>
+    11c:        f80e8e93        addi x29 x29 -128
+
+00000120 <f_fin_small>:
+    120:        006ef5b3        and x11 x29 x6
+    124:        003e0513        addi x10 x28 3
+#end
+
+# a0 = 3
+# a1 = 1
+
+

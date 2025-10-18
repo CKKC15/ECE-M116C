@@ -1,0 +1,30 @@
+# r-type:
+    0:        123452b7        lui x5 0x12345
+    4:        6782e293        ori x5 x5 1656
+    8:        00abc337        lui x6 0xabc
+    c:        def36313        ori x6 x6 -529
+    10:        0062f3b3        and x7 x5 x6
+    14:        40628e33        sub x28 x5 x6
+    18:        00d00f13        addi x30 x0 13
+    1c:        41ee5eb3        sra x29 x28 x30
+    20:        400ebf93        sltiu x31 x29 1024
+    24:        0ff00413        addi x8 x0 255
+    28:        008efbb3        and x23 x29 x8
+    2c:        001b8b93        addi x23 x23 1
+    30:        100beb93        ori x23 x23 256
+    34:        000084b7        lui x9 0x8
+    38:        3c04e493        ori x9 x9 960
+    3c:        41748c33        sub x24 x9 x23
+    40:        41ec5c33        sra x24 x24 x30
+    44:        800c3c93        sltiu x25 x24 -2048
+    48:        009c7533        and x10 x24 x9
+    4c:        13579937        lui x18 0x13579
+    50:        24696913        ori x18 x18 582
+    54:        005975b3        and x11 x18 x5
+#end
+
+(Values are in signed decimal)
+# a0 = 0
+# a1 = 303305280
+
+
