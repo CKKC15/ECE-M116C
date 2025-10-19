@@ -7,6 +7,7 @@
 #include <string>
 #include<fstream>
 #include <sstream>
+#include <unordered_map>
 using namespace std;
 
 /*
@@ -53,7 +54,7 @@ int main(int argc, char* argv[])
 			//cout<<instMem[i]<<endl;
 			i++;
 		}
-	int maxPC= i/4; 
+	int maxPC= i/8; 
 
 	/* Instantiate your CPU object here.  CPU class is the main class in this project that defines different components of the processor.
 	CPU class also has different functions for each stage (e.g., fetching an instruction, decoding, etc.).
@@ -63,17 +64,32 @@ int main(int argc, char* argv[])
 	// make sure to create a variable for PC and resets it to zero (e.g., unsigned int PC = 0); 
 
 	/* OPTIONAL: Instantiate your Instruction object here. */
-	//Instruction myInst; 
-	
+	Instruction myInst; 
+	unordered_map<int, int> regfile;
+
 	bool done = true;
 	while (done == true) // processor's main loop. Each iteration is equal to one clock cycle.  
 	{
-		//fetch
-		
+		//fetch instruction from instMem and PC
+		myInst = myCPU.fetchInstruction(instMem);
+		// cout << myInst.instr << endl;
 
 		// decode
+		// cout << myInst.getOpCode() << endl;
+		myCPU.cpu_control.setController(myInst.getOpCode()); // set the controller using opcode
+
+		// update rs1, rs2, rd, imm values as necessary and according to control rules
+		myCPU.updateValuesInstructionDecode(myInst);
+
+		// execute ALU_Control and ALU
+		myCPU.alu_control.setALUControl(myCPU.cpu_control.aluop, myInst); // get the 4-bit code to ALU
 		
-		// ... 
+
+		// mem
+
+		// write back
+
+		cout << endl;
 		myCPU.incPC();
 		if (myCPU.readPC() > maxPC)
 			break;
@@ -81,8 +97,9 @@ int main(int argc, char* argv[])
 	int a0 =0;
 	int a1 =0;  
 	// print the results (you should replace a0 and a1 with your own variables that point to a0 and a1)
-	  cout << "(" << a0 << "," << a1 << ")" << endl;
-	
+	cout << "(" << a0 << "," << a1 << ")" << endl;
+	cout << instMem[0] << ", " << instMem[1] << endl;
+	cout << i << maxPC << endl;
 	return 0;
 
 }
