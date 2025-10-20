@@ -7,7 +7,6 @@
 #include <string>
 #include<fstream>
 #include <sstream>
-#include <unordered_map>
 using namespace std;
 
 /*
@@ -65,7 +64,6 @@ int main(int argc, char* argv[])
 
 	/* OPTIONAL: Instantiate your Instruction object here. */
 	Instruction myInst; 
-	unordered_map<int, int> regfile;
 
 	bool done = true;
 	while (done == true) // processor's main loop. Each iteration is equal to one clock cycle.  
@@ -73,6 +71,9 @@ int main(int argc, char* argv[])
 		//fetch instruction from instMem and PC
 		myInst = myCPU.fetchInstruction(instMem);
 		// cout << myInst.instr << endl;
+		if (myInst.getOpCode().to_string() == "0000000"){
+			break;
+		}
 
 		// decode
 		// cout << myInst.getOpCode() << endl;
@@ -84,22 +85,97 @@ int main(int argc, char* argv[])
 		// execute ALU_Control and ALU
 		myCPU.alu_control.setALUControl(myCPU.cpu_control.aluop, myInst); // get the 4-bit code to ALU
 		
+		int secondvalue;
+		// logic of mux to choose rs2 or imm
+		if (myCPU.cpu_control.alusrc == 1){
+			secondvalue = myCPU.imm;
+			//cout << "second (imm): " << secondvalue << endl;
+		}
+		else{
+			secondvalue = myCPU.regfile[myCPU.rs2];
+			//cout << "second (rs2): " << secondvalue << endl;
+		}
+		int firstvalue = myCPU.regfile[myCPU.rs1];
+		//cout << "first: " << firstvalue << endl;
+		myCPU.alu.executeALU(myCPU.alu_control.fourbitout, firstvalue, secondvalue, myCPU.cpu_control.islui);
 
 		// mem
+		// do branching section here
+		if (myCPU.cpu_control.branch == 1){
+			// if BNE
+			if (myCPU.cpu_control.regwrite != 1){
+				if (myCPU.alu.zero == 1){
+					// they are equal, so dont branch BNE
+					myCPU.incPC();
+				}
+				else{ // gotta branch to label which is immediate
+					int decrement = myCPU.imm << 1;
+					//cout << "decrement: " << decrement << endl;
+					myCPU.setPC(myCPU.readPC() + decrement/4);
+				}
+			}
+			else{ //JALR
+				// write address to jump back to to reg rd
+				if (myCPU.rd != 0){ // only if not x0
+					myCPU.regfile[myCPU.rd] = 4*myCPU.readPC() + 4;	
+				}
+				//cout << "JALR PC + 1: " << myCPU.readPC() + 1 << endl;
+				// jump to reg[rs1] + offset [31:1], 1'b0
+				uint32_t address = myCPU.alu.alu_res & ~1;
+				myCPU.setPC(address/4);
+			}
+			//cout << endl;
+			continue; // skip rest of loop
+		}
+		
 
-		// write back
+		
+		// if mem write is true (STORE WORD)
+		if (myCPU.cpu_control.memwr == 1){
+			// check func3: if 010 then SW
+			if (myInst.getfunc3().to_string() == "010"){
+				myCPU.storeword(myCPU.alu.alu_res, myCPU.regfile[myCPU.rs2]);
+			}
+			else{ // SH
+				myCPU.storehalf(myCPU.alu.alu_res, myCPU.regfile[myCPU.rs2]);
+			}
+			//cout << "Stored: " << myCPU.regfile[myCPU.rs2] << " in address " << myCPU.alu.alu_res << endl;
+		}
+		
+		int resToWriteBack;
+		// if mem to reg is 0 take alu result
+		if (myCPU.cpu_control.memtoreg == 0){
+			resToWriteBack = myCPU.alu.alu_res;
+		}
+		else{ // take data that was read
+			if (myCPU.cpu_control.memre == 1){ // (LOAD WORD)
+				// check func3: if 010 then LW
+				if (myInst.getfunc3().to_string() == "010"){
+					resToWriteBack = myCPU.loadword(myCPU.alu.alu_res);
+				}
+				else{
+					resToWriteBack = myCPU.loadbyteunsigned(myCPU.alu.alu_res);
+				}
+				//cout << "Loaded: " << resToWriteBack << " into register " << myCPU.rd << endl;
+			}
+		}
 
-		cout << endl;
+		// write back (can't write to x0)
+		if (myCPU.cpu_control.regwrite == 1 && myCPU.rd != 0){
+			myCPU.regfile[myCPU.rd] = resToWriteBack;
+			//cout << "RES: " << resToWriteBack << endl;
+		}
+		//cout << endl;
 		myCPU.incPC();
 		if (myCPU.readPC() > maxPC)
 			break;
 	}
-	int a0 =0;
-	int a1 =0;  
+	int a0 =myCPU.regfile[10];
+	int a1 =myCPU.regfile[11];  
 	// print the results (you should replace a0 and a1 with your own variables that point to a0 and a1)
 	cout << "(" << a0 << "," << a1 << ")" << endl;
-	cout << instMem[0] << ", " << instMem[1] << endl;
-	cout << i << maxPC << endl;
+	//cout << instMem[0] << ", " << instMem[1] << endl;
+	//cout << i << " " << maxPC << endl;
 	return 0;
 
 }
