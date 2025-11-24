@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
-    
+    /*
     printf("Processor Settings\n");
     printf("R: %" PRIu64 "\n", r);
     printf("k0: %" PRIu64 "\n", k0);
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
     printf("k2: %" PRIu64 "\n", k2);
     printf("F: %"  PRIu64 "\n", f);
     printf("\n");
-
+    */
     /* Setup the processor */
     setup_proc(r, k0, k1, k2, f);
 
@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
     complete_proc(&stats);
 
     // Comment this out when submitting to gradescope
-    print_statistics(&stats);
+    //print_statistics(&stats);
 
     printf("%lu\n",stats.cycle_count);
 

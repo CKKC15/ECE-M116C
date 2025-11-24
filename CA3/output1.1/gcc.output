@@ -5,6 +5,7 @@ k1: 2
 k2: 1
 F: 4
 
+INST	FETCH	DISP	SCHED	EXEC	STATE
 1	1	2	3	4	5
 2	1	2	3	4	5
 3	1	2	3	4	6

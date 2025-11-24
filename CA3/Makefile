@@ -13,7 +13,7 @@ build:
 	$(CXX) $(CXXFLAGS) $(SRC) -o procsim
 
 run:
-	$(PROCSIM) -r$R -f$F -j$J -k$K -l$L < traces/gcc.100k.trace 
+	$(PROCSIM) -r$R -f$F -j$J -k$K -l$L < traces/hmmer.100k.trace 
 
 clean:
 	rm -f procsim *.o

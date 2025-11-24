@@ -3,6 +3,7 @@
 #include <deque>
 #include <algorithm>
 #include <iostream>
+#include <set>
 using namespace std;
 
 // global setup variables 
@@ -54,7 +55,7 @@ static vector<FuUnit> g_fu_k2;
 
 // Very simple register readiness model (128 regs, as in handout)
 static bool g_reg_ready[128]; //0 -> 127
-static uint64_t g_reg_producer_tag[128];
+static set<uint64_t> g_reg_producer_tag[128];
 
 // Tag generator for instructions
 static uint64_t g_next_tag = 1;
@@ -123,7 +124,7 @@ void setup_proc(uint64_t r, uint64_t k0, uint64_t k1, uint64_t k2, uint64_t f)
     // Register file ready bits: assume all regs initially ready
     for (int i = 0; i < 128; i++) {
         g_reg_ready[i] = true;
-        g_reg_producer_tag[i] = 0;
+        g_reg_producer_tag[i].clear();
     }
 
     g_next_tag             = 1;
@@ -207,20 +208,21 @@ void complete_proc(proc_stats_t *p_stats)
 {
     // Average instructions fired per cycle
     p_stats->avg_inst_fired   = static_cast<float>(g_total_inst_fired) /
-                                static_cast<float>(g_cycle_count);
+                                static_cast<float>(g_cycle_count-1);
 
     // Average instructions retired per cycle (IPC)
     p_stats->avg_inst_retired = static_cast<float>(g_total_inst_retired) /
-                                static_cast<float>(g_cycle_count);
+                                static_cast<float>(g_cycle_count-1);
 
     // Average dispatch queue size
-    p_stats->avg_disp_size    = static_cast<float>(g_total_dispatch_size) /
-                                static_cast<float>(g_cycle_count);
+    p_stats->avg_disp_size    = static_cast<double>(g_total_dispatch_size) /
+                                static_cast<float>(g_cycle_count-1);
 
     // Max dispatch queue size
     p_stats->max_disp_size    = g_max_dispatch_size;
 
-    print_timing_output();
+    //print_timing_output();
+    //cout << endl;
 }
 
 
@@ -258,7 +260,7 @@ static void stage_fetch(){
     }
 }
 
-// ----------------- DISPATCH -----------------
+// DISPATCH
 static void stage_dispatch()
 {
     // Loop through all fetched instructions
@@ -268,7 +270,7 @@ static void stage_dispatch()
     }
 }
 
-// ----------------- SCHEDULE (DISPATCH -> RS) -----------------
+// SCHEDULE (DISPATCH -> RS)
 static void stage_schedule(int rs_free_start)
 {
     int used_this_cycle = 0;
@@ -341,30 +343,15 @@ static void stage_schedule(int rs_free_start)
         // Mark destination register as being used so not ready
         if (inst.dest_reg != -1) {
             g_reg_ready[inst.dest_reg] = false;
-            g_reg_producer_tag[inst.dest_reg] = inst.tag;
+            g_reg_producer_tag[inst.dest_reg].insert(inst.tag);
         }
     }
 }
 
 
-// ----------------- EXECUTE_FIRE (RS -> FU) -----------------
+//EXECUTE_FIRE (RS -> FU)
 static void stage_execute_fire()
 {
-    // TODO:
-    // 1. Find all RS entries that:
-    //      - valid == true
-    //      - issued == false
-    //      - src_ready[0/1] == true (for those that apply)
-    // 2. Among these, service in *tag order* (lowest tag first).
-    // 3. For each candidate, find a free FU of the correct type (based on op_code).
-    //    - If FU available:
-    //         - Mark FU busy, set inst_tag, cycles_left = 1 (latency = 1 for all FUs here)
-    //         - Mark RS entry issued=true, record fu_type & fu_index.
-    //         - Increment g_total_inst_fired.
-    //
-    // NOTE: You should NOT decrement cycles_left here; that typically happens
-    //       in stage_execute_writeback() when modeling multi-cycle FUs.
-
     // Collect all ready-to-issue RS entries
     vector<int> ready_indices;
     for (size_t i = 0; i < g_rs.size(); i++) {
@@ -412,22 +399,9 @@ static void stage_execute_fire()
     }
 }
 
-// ----------------- EXECUTE_WRITEBACK (FUs + Result Buses) -----------------
+// EXECUTE_WRITEBACK (FUs + Result Buses)
 static void stage_execute_writeback()
 {
-    // TODO:
-    // 1. Decrement cycles_left for all busy FUs.
-    // 2. Collect all FUs whose cycles_left == 0 (completed this cycle).
-    // 3. Sort these completed instructions by tag.
-    // 4. Use up to g_R result buses:
-    //    - For the first g_R completed instructions:
-    //        a) Find their RS entry by tag; mark completed = true.
-    //        b) "Broadcast" on CDB:
-    //             - For every RS entry waiting on that tag, mark src_ready=true.
-    //             - For any register whose producer_tag == that tag, set g_reg_ready[reg]=true.
-    //        c) Free the FU (busy=false, inst_tag=0, etc.).
-    //    - Any remaining completed FUs (beyond g_R) must stay busy and
-    //      keep inst_tag until a CDB is available in a later cycle.
     // Collect all instructions that completed execution this cycle
     vector<uint64_t> completed_tags;
 
@@ -499,7 +473,7 @@ static void stage_execute_writeback()
     }
 }
 
-// ----------------- STATE_UPDATE (Retirement) -----------------
+// STATE_UPDATE (Retirement)
 // RETIRE: Remove from RS, increment retirement counter, and set ST cycle to when it enters here.
 static void stage_state_update()
 {
@@ -523,31 +497,81 @@ static void stage_state_update()
 
         if (g_rs[idx].inst.dest_reg != -1) {
             // if Latest Tag Dependent matches Retiring Tag
-            if (g_reg_producer_tag[g_rs[idx].inst.dest_reg] == g_rs[idx].inst.tag)
+            int latest_tag = *g_reg_producer_tag[g_rs[idx].inst.dest_reg].rbegin(); //get the last tag (largest)
+            int retiring_tag = g_rs[idx].inst.tag;
+            auto &S = g_reg_producer_tag[g_rs[idx].inst.dest_reg];
+            // if Latest Tag Dependent matches Retiring Tag
+            if (latest_tag == retiring_tag)
                 g_reg_ready[g_rs[idx].inst.dest_reg] = true; //set as ready
+            
             // iterate through and set as ready in RS
             for (auto &entry : g_rs) {
+                int consumer_tag = entry.inst.tag; 
                 // find cases where the src matches the destination register
                 if (entry.inst.src_reg[0] == g_rs[idx].inst.dest_reg) {
                     // only if the tag of this instruction is greater than the retiring instruction
-                    //cout << "Latest Tag Dependent: " << g_reg_producer_tag[g_rs[idx].inst.dest_reg] << endl;
+                    //cout << "Latest Tag Dependent: " << latest_tag << endl;
                     //cout << "Found src0 tag match dest: " << entry.inst.tag << endl;
-                   // cout << "Retiring Instruction Tag: " << g_rs[idx].inst.tag << endl << endl;
+                    //cout << "Retiring Instruction Tag: " << g_rs[idx].inst.tag << endl << endl;
                     // if the src instr tag matching dest is in between the Latest Tag Dependent and the Retiring Tag
-                    if (g_reg_producer_tag[g_rs[idx].inst.dest_reg] == g_rs[idx].inst.tag ||
-                        entry.inst.tag > g_rs[idx].inst.tag && entry.inst.tag <= g_reg_producer_tag[g_rs[idx].inst.dest_reg])
+                    /*if (latest_tag == retiring_tag ||
+                        entry.inst.tag > retiring_tag && entry.inst.tag <= latest_tag)
+                        entry.src_ready[0] = true; */
+                    // only mark true if src tag is the smallest here
+                    /*
+                    bool exists_smaller = (g_reg_producer_tag[g_rs[idx].inst.dest_reg].lower_bound(entry.inst.tag) != g_reg_producer_tag[g_rs[idx].inst.dest_reg].begin());
+                    if (!exists_smaller){
                         entry.src_ready[0] = true;
+                    }
+                        */
+                    auto it = S.lower_bound(consumer_tag);
+                    // it = first producer tag >= consumer_tag
+
+                    if (it != S.begin()) {
+                        auto prev_it = std::prev(it);        // last producer < consumer_tag
+                        int prev_tag = *prev_it;
+
+                        if (prev_tag == retiring_tag) {
+                            // retiring_tag is the last producer before this consumer
+                            // this consumer's source becomes ready
+                            entry.src_ready[0] = true;   // or src_ready[1] depending on which src
+                        }
+                    }
+                    
                 }
                 if (entry.inst.src_reg[1] == g_rs[idx].inst.dest_reg){
                     // only if the tag of this instruction is greater than the retiring instruction
-                   // cout << "Latest Tag Dependent: " << g_reg_producer_tag[g_rs[idx].inst.dest_reg] << endl;
-                   // cout << "Found src1 tag match dest: " << entry.inst.tag << endl;
-                   // cout << "Retiring Instruction Tag: " << g_rs[idx].inst.tag << endl << endl;
+                    //cout << "Latest Tag Dependent: " << latest_tag << endl;
+                    //cout << "Found src1 tag match dest: " << entry.inst.tag << endl;
+                    //cout << "Retiring Instruction Tag: " << g_rs[idx].inst.tag << endl << endl;
                     // if the src instr tag matching dest is in between the Latest Tag Dependent and the Retiring Tag
-                    if (g_reg_producer_tag[g_rs[idx].inst.dest_reg] == g_rs[idx].inst.tag ||
-                        entry.inst.tag > g_rs[idx].inst.tag && entry.inst.tag <= g_reg_producer_tag[g_rs[idx].inst.dest_reg])
+                    /*if (latest_tag == retiring_tag ||
+                        entry.inst.tag > retiring_tag && entry.inst.tag <= latest_tag)
+                        entry.src_ready[1] = true;*/
+                    // only mark true if src tag is the smallest here
+                    /*
+                    bool exists_smaller = (g_reg_producer_tag[g_rs[idx].inst.dest_reg].lower_bound(entry.inst.tag) != g_reg_producer_tag[g_rs[idx].inst.dest_reg].begin());
+                    if (!exists_smaller){
                         entry.src_ready[1] = true;
+                    }*/
+                    auto it = S.lower_bound(consumer_tag);
+                    // it = first producer tag >= consumer_tag
+
+                    if (it != S.begin()) {
+                        auto prev_it = std::prev(it);        // last producer < consumer_tag
+                        int prev_tag = *prev_it;
+
+                        if (prev_tag == retiring_tag) {
+                            // retiring_tag is the last producer before this consumer
+                            // → this consumer's source becomes ready
+                            entry.src_ready[1] = true;   // or src_ready[1] depending on which src
+                        }
+                    }
                 }
+            }
+            //if retiring tag is in the tag dependent set then remove
+            if (g_reg_producer_tag[g_rs[idx].inst.dest_reg].find(retiring_tag) != g_reg_producer_tag[g_rs[idx].inst.dest_reg].end()){
+                g_reg_producer_tag[g_rs[idx].inst.dest_reg].erase(retiring_tag);
             }
         }
         // Clear the RS entry
@@ -581,8 +605,7 @@ static bool all_instructions_done()
      //If dispatch_q still has entries, not done
     if (!g_dispatch_q.empty()) {
         return false;
-    } 
-        
+    }    
 
      //If g_rs still has entries, not done
     if (rs_has_active()) {
@@ -592,7 +615,6 @@ static bool all_instructions_done()
     if (any_busy(g_fu_k0) || any_busy(g_fu_k1) || any_busy(g_fu_k2)) {
         return false;
     }
-        
 
     // Otherwise, everything is fetched, scheduled, executed, and retired
     return true;
@@ -601,7 +623,7 @@ static bool all_instructions_done()
 void print_timing_output()
 {
     // Header – MUST be tabs, not spaces
-    //printf("INST\tFETCH\tDISP\tSCHED\tEXEC\tSTATE\n");
+    printf("INST\tFETCH\tDISP\tSCHED\tEXEC\tSTATE\n");
 
     // tags go from 1 to g_inst_table.size()-1
     for (size_t tag = 1; tag < g_inst_table.size(); ++tag) {
